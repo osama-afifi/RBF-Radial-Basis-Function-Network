@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <string>
+#include <algorithm>
+#include <time.h>
 
-#include "opencv\cv.h"
-#include <opencv2/core/core.hpp>
+#include "opencv2/objdetect/objdetect.hpp"
+#include "opencv/cv.h"
+#include "opencv/highgui.h"
 #include "opencv2/imgproc/imgproc.hpp"
-#include <opencv2/highgui/highgui.hpp>
 
 #include "RBFNetwork.h"
 
@@ -12,6 +14,7 @@ using namespace std;
 using namespace cv;
 
 string data_dir = "D:/Osama/MyDrive/[Fourth Year][CS15]/2nd Semester/[NeuralNetworks15]/Final Project/Head Orientation Data set/Head Orientation Data set/";
+string label_result[]= { "Facing Front.", "Facing Left.", "Facing Right." };
 
 string intToStr(int num)
 {
@@ -30,13 +33,12 @@ datapoint imageToDoubleVec(cv::Mat image)
 {
 	Mat image_gray;
 	cvtColor(image,image_gray,CV_RGB2GRAY);
-	Mat image_gray_equalized;
-	equalizeHist( image_gray, image_gray_equalized );
-	datapoint data_point(image_gray_equalized.rows*image_gray_equalized.cols);
+	equalizeHist( image_gray, image_gray );
+	datapoint data_point(image_gray.rows*image_gray.cols);
 	int i=0;
-	MatConstIterator_<uchar> it = image_gray_equalized.begin<uchar>(), it_end = image_gray_equalized.end<uchar>();
+	MatConstIterator_<uchar> it = image_gray.begin<uchar>(), it_end = image_gray.end<uchar>();
 	for(; it != it_end; ++it)
-		data_point[i++] = ((double)(*it)/128.0)-1.0;
+		data_point[i++] = ((double)(*it)/128.0)-1;
 	return data_point;
 }
 
@@ -85,7 +87,7 @@ __inline void loadTrainingData(vector<datapoint> &training_data, vector<int> &tr
 	vector<datapoint> temp = training_data;
 	vector<int> temp2 = training_labels;
 	for(int i =0 ;i<training_data.size() ; i++)	perm[i]=i;
-	std::srand ( unsigned ( std::time(0) ) );
+	srand (unsigned(time(0)));
 	random_shuffle(perm.begin(),perm.end());
 	for(int i =0 ;i<training_data.size() ; i++) training_data[perm[i]] = temp[i],training_labels[perm[i]] = temp2[i];
 }
@@ -140,21 +142,84 @@ int main()
 	vector<datapoint> training_data, testing_data;
 	vector<int> training_labels, test_labels;
 	loadTrainingData(training_data,training_labels, 50);
-	loadTrainingData(testing_data,test_labels, 30);
+	loadTestingData(testing_data,test_labels, 30);
 
 	RBFNetwork RBFNN(training_data,training_labels,3);
+	double mse=0;
+	RBFNN.startTraining(5, 0.01, 10, mse, true);
 
-	for(int rbf_units = 5 ; rbf_units<=20 ; rbf_units++)
+	printf("Choose: \n");
+	printf("1) Real-time Testing\n");
+	printf("2) Testing on a test data set\n");
+	int choice; scanf("%d", &choice);
+
+	if(choice==1)
 	{
-		for(double learning = 0.01 ; learning<=2.0 ; learning*=2.0)
+		VideoCapture capture;
+		Mat frame;
+		CascadeClassifier profilefaceCascade;
+		if( !profilefaceCascade.load( "C:/opencv/sources/data/haarcascades/HS22x20/HS.xml" ) )
+			printf("--(!)Error loading\n");
+
+		string window_name = "Capture - Eye Iris detection";
+		RNG rng(12345);
+		capture.open( 0 );
+		if( capture.isOpened() )
 		{
-			printf("RBF Network with %d units, learning rate=%f\n", rbf_units, learning);
-			double mse=0;
-			double acc  = RBFNN.startTraining(rbf_units, learning, 100, mse, true);
-			//printf(" Acc=%.6f , MSE=%.6f\n", acc, mse);
+			while(true)
+			{
+				capture >> frame;
+				vector<Rect> profilefaceRect;
+				if( !frame.empty() )  
+				{
+					profilefaceCascade.detectMultiScale(frame, profilefaceRect, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE);
+					if(profilefaceRect.size())
+					{
+						Size size(50,50);//the dst image size
+						Mat cropedImage = frame(profilefaceRect[0]);
+						Mat resizedImage;
+						resize(cropedImage,resizedImage,size);
+						cvtColor(cropedImage,cropedImage,CV_RGB2GRAY);
+						equalizeHist( cropedImage, cropedImage );
+						datapoint data_point = imageToDoubleVec(resizedImage);
+						double err=0;
+						int predict = RBFNN.predictLabel(data_point, err);
+						rectangle(frame,profilefaceRect[0],Scalar(255,0,0));
+						putText(frame, label_result[predict], cvPoint(30,30), 
+							FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
+					}
+					imshow( window_name, frame );
+				}
+				else { printf(" --(!) No captured frame -- Break!"); break; }
+				int c = waitKey(10);
+				if( (char)c == 'c') { break; }
+				if( (char)c == 's')
+				{
+					imwrite( "test.jpg", frame );
+				}
+
+
+			}
 		}
 	}
-	
+	else if(choice==2)
+	{
+		RBFNN.startTesting(testing_data,test_labels);
+	}
+
+	//// Experimenting results for different number of RBF units and learning rates
+	//for(int rbf_units = 5 ; rbf_units<=100 ; rbf_units+=2)
+	//{
+	//	for(double learning = 0.01 ; learning<=10.0 ; learning*=2.0)
+	//	{
+	//		printf("RBF Network with %d units, learning rate=%f\n", rbf_units, learning);
+	//		double mse=0;
+	//		double acc  = RBFNN.startTraining(rbf_units, learning, 100, mse, true);
+	//		RBFNN.startTesting(testing_data,test_labels);
+	//		//printf(" Acc=%.6f , MSE=%.6f\n", acc, mse);
+	//	}
+	//}
+
 
 	return 0;
 }

@@ -35,12 +35,13 @@ public:
 
 private:
 	int num_of_labels;
+	double gamma;
 	std::vector<datapoint> training_data;
 	std::vector<int> training_labels;
 	std::vector< std::vector<double> > rbf_units;
 	std::vector< std::vector<double> > layer2_weights;
 	std::vector<datapoint> rbf_centroids;
-	std::vector<double>total_centroids_dist;
+	//std::vector<double>total_centroids_dist;
 
 	// Random Number seed devices/engines/distributions
     std::random_device rd;
@@ -48,8 +49,9 @@ private:
 	std::uniform_real_distribution<double> random_real_gen;
 
 	void buildRBFUnits();
+	void calculateGamma();
 	double distance(const datapoint &a ,const datapoint &b);
-	double basisFunction(const datapoint &data_point, const datapoint &centroid, const double total_centroid_dist);
+	double basisFunction(const datapoint &data_point, const datapoint &centroid);
 	
 };
 
