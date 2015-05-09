@@ -14,7 +14,9 @@ using namespace std;
 using namespace cv;
 
 string data_dir = "D:/Osama/MyDrive/[Fourth Year][CS15]/2nd Semester/[NeuralNetworks15]/Final Project/Head Orientation Data set/Head Orientation Data set/";
+string project_dir="D:/Osama/Programming/Projects/RadialBasisFunctionNetwork/RadialBasisFunctionNetwork/";
 string label_result[]= { "Facing Front.", "Facing Left.", "Facing Right." };
+string window_name = "Capture - Head Orientation Detection";
 
 string intToStr(int num)
 {
@@ -144,81 +146,118 @@ int main()
 	loadTrainingData(training_data,training_labels, 50);
 	loadTestingData(testing_data,test_labels, 30);
 
-	RBFNetwork RBFNN(training_data,training_labels,3);
+	RBFNetwork RBFNN(training_data, training_labels, 3);
 	double mse=0;
-	RBFNN.startTraining(5, 0.01, 10, mse, true);
+	RBFNN.startTraining(11, 0.005, 10, mse, true);
 
-	printf("Choose: \n");
-	printf("1) Real-time Testing\n");
-	printf("2) Testing on a test data set\n");
-	int choice; scanf("%d", &choice);
-
-	if(choice==1)
+	while(1)
 	{
-		VideoCapture capture;
-		Mat frame;
-		CascadeClassifier profilefaceCascade;
-		if( !profilefaceCascade.load( "C:/opencv/sources/data/haarcascades/HS22x20/HS.xml" ) )
-			printf("--(!)Error loading\n");
+		printf("Choose: \n");
+		printf("1) Real-time Testing\n");
+		printf("2) Testing on a test data set\n");
+		printf("3) Input Image name (from TestSamples Folder)\n");
+		printf("4) See Experimental Logs\n");
+		printf("5) Exit\n");
+		printf("Your Choice: ");
+		int choice; scanf("%d", &choice);
 
-		string window_name = "Capture - Eye Iris detection";
-		RNG rng(12345);
-		capture.open( 0 );
-		if( capture.isOpened() )
+		if(choice==1)
 		{
-			while(true)
+			VideoCapture capture;
+			Mat frame;
+			CascadeClassifier profilefaceCascade;
+			if( !profilefaceCascade.load( "C:/opencv/sources/data/haarcascades/haarcascade_profileface.xml") )
+				printf("--(!)Error loading\n");
+
+
+			RNG rng(12345);
+			capture.open( 0 );
+			if( capture.isOpened() )
 			{
-				capture >> frame;
-				vector<Rect> profilefaceRect;
-				if( !frame.empty() )  
+				while(true)
 				{
-					profilefaceCascade.detectMultiScale(frame, profilefaceRect, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE);
-					if(profilefaceRect.size())
+					capture >> frame;
+					vector<Rect> profilefaceRect;
+					if( !frame.empty() )  
 					{
-						Size size(50,50);//the dst image size
-						Mat cropedImage = frame(profilefaceRect[0]);
-						Mat resizedImage;
-						resize(cropedImage,resizedImage,size);
-						cvtColor(cropedImage,cropedImage,CV_RGB2GRAY);
-						equalizeHist( cropedImage, cropedImage );
-						datapoint data_point = imageToDoubleVec(resizedImage);
-						double err=0;
-						int predict = RBFNN.predictLabel(data_point, err);
-						rectangle(frame,profilefaceRect[0],Scalar(255,0,0));
-						putText(frame, label_result[predict], cvPoint(30,30), 
-							FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(200,200,250), 1, CV_AA);
+						profilefaceCascade.detectMultiScale(frame, profilefaceRect, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE);
+						if(profilefaceRect.size())
+						{
+							Size size(50,50);//the dst image size
+							Mat cropedImage = frame(profilefaceRect[0]);
+							Mat resizedImage;
+							resize(cropedImage,resizedImage,size);
+							cvtColor(cropedImage,cropedImage,CV_RGB2GRAY);
+							equalizeHist( cropedImage, cropedImage );
+							datapoint data_point = imageToDoubleVec(resizedImage);
+							double err=0;
+							int predict = RBFNN.predictLabel(data_point, err);
+							rectangle(frame,profilefaceRect[0],Scalar(255,0,0));
+							putText(frame, label_result[predict], cvPoint(30,30), 
+								FONT_HERSHEY_COMPLEX_SMALL, 0.8, cvScalar(predict*50,200,250), 1, CV_AA);
+						}
+						imshow( window_name, frame );
 					}
-					imshow( window_name, frame );
-				}
-				else { printf(" --(!) No captured frame -- Break!"); break; }
-				int c = waitKey(10);
-				if( (char)c == 'c') { break; }
-				if( (char)c == 's')
-				{
-					imwrite( "test.jpg", frame );
-				}
+					else { printf(" --(!) No captured frame -- Break!"); break; }
+					int c = waitKey(10);
+					if( (char)c == 'c') { break; }
+					if( (char)c == 's')
+					{
+						imwrite( "test.jpg", frame );
+					}
 
 
+				}
 			}
 		}
-	}
-	else if(choice==2)
-	{
-		RBFNN.startTesting(testing_data,test_labels);
+		else if(choice==2)
+		{
+			RBFNN.startTesting(testing_data,test_labels);
+		}
+		else if(choice==3)
+		{
+			printf("Enter Image name: ");
+			string dir;
+			cin>>dir;
+			Mat image = imread(project_dir+"TestSamples/"+dir);
+			if(!image.rows)
+			{
+				printf("\nError Loading Image, Check Directory!\n");
+				continue;
+			}
+			datapoint data_point = imageToDoubleVec(image);
+			if(data_point.size()!=2500)
+			{
+				printf("\nYou should use 50x50 images\n");
+				continue;
+			}
+			double err=0;
+			int prediction = RBFNN.predictLabel(data_point, err);
+			printf("\nThe Person in the image %s is %s\n", dir.c_str(),  label_result[prediction].c_str());
+			resize(image,image,Size(400,400));
+			imshow( window_name, image );
+			if( waitKey (30) >= 0) break;
+		}
+		else if(choice==4)
+		{
+			// Experimenting results for different number of RBF units and learning rates
+			for(int rbf_units = 3 ; rbf_units<=100 ; rbf_units+=2)
+			{
+				for(double learning = 0.01 ; learning<=10.0 ; learning*=2.0)
+				{
+					printf("RBF Network with %d units, learning rate=%f\n", rbf_units, learning);
+					double mse=0;
+					double acc  = RBFNN.startTraining(rbf_units, learning, 10, mse, true);
+					RBFNN.startTesting(testing_data,test_labels);
+					//printf(" Acc=%.6f , MSE=%.6f\n", acc, mse);
+				}
+			}
+			break;
+		}
+		else
+			break;
 	}
 
-	//// Experimenting results for different number of RBF units and learning rates
-	//for(int rbf_units = 5 ; rbf_units<=100 ; rbf_units+=2)
-	//{
-	//	for(double learning = 0.01 ; learning<=10.0 ; learning*=2.0)
-	//	{
-	//		printf("RBF Network with %d units, learning rate=%f\n", rbf_units, learning);
-	//		double mse=0;
-	//		double acc  = RBFNN.startTraining(rbf_units, learning, 100, mse, true);
-	//		RBFNN.startTesting(testing_data,test_labels);
-	//		//printf(" Acc=%.6f , MSE=%.6f\n", acc, mse);
-	//	}
-	//}
 
 
 	return 0;

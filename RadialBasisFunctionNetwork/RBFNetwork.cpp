@@ -49,7 +49,7 @@ double RBFNetwork::startTraining(int num_rbf_units, double learning_rate, int nu
 				double hypothesis = Utility::multiplyVectors(rbf_units[i], layer2_weights[label]);
 				hypothesis = max(min(hypothesis,+1.0),-1.0);
 				double truth_base = (training_labels[i]==label) ? +1.0 : -1.0;
-				double error_direction = (truth_base-hypothesis)/1;
+				double error_direction = (truth_base-hypothesis);
 				vector<double> delta = Utility::multiplyVecConst(rbf_units[i], error_direction * learning_rate);
 				Utility::AddVectors(layer2_weights[label], delta);	
 			}
@@ -60,22 +60,20 @@ double RBFNetwork::startTraining(int num_rbf_units, double learning_rate, int nu
 			// Gathering Statistics
 			mse = 0.0;
 			accuracy=0;
-			int l[3]={};
+			vector<int> labelFreq(num_of_labels);
 			for(int i = 0 ; i<training_data.size() ; i++)
 			{
 				double error_dir=0;
 				int prediction = predictLabel(training_data[i], error_dir);
-				++l[prediction];
+				++labelFreq[prediction];
 				if(prediction == training_labels[i])accuracy++;
 				mse += error_dir * error_dir;
 			}
 			mse *= (double)(1.0/(double)training_data.size());
 			accuracy *= (double)(1.0/(double)training_data.size());
-			printf("Training (%*d/%d), MSE=[%.3f], Acc=[%.3f], Progress [%.2f] 1:%d,2:%d,3:%d\r",
-				2, (iter+1), num_iterations, mse, accuracy*100.0 ,
-				((double)((double)(iter+1)/(double)num_iterations) * 100.0) , l[0],l[1],l[2]);
+			printf("Training (%*d/%d), MSE=[%.3f], Acc=[%.2f], Progress [%.2f]\r",
+				2, (iter+1), num_iterations, mse, accuracy*100.0 , ((double)((double)(iter+1)/(double)num_iterations) * 100.0));
 		}
-
 
 		if(mse < 1e-9)
 			break;
@@ -155,13 +153,12 @@ void RBFNetwork::startTesting(const std::vector<datapoint> &testing_data, const 
 	double acc=0,mse=0,err=0;
 	for(int i = 0 ; i<testing_data.size() ; i++)
 	{
-			if(predictLabel(testing_data[i],err)==testing_labels[i])
-				acc++;
-			mse += err*err;
-	}
-	
+		if(predictLabel(testing_data[i],err)==testing_labels[i])
+			acc++;
+		mse += err*err;
+	}	
 	acc *= (1.0/(double)testing_data.size());
 	mse *= (1.0/(double)testing_data.size());
-	printf("Testing Results MSE=%.6f, Acc=%3f\n",mse ,acc*100.0);
+	printf("Testing Results MSE = %.6f, Accuracy = %.2f\n",mse ,acc*100.0);
 	printf("------------------------------\n");
 }
